@@ -3,17 +3,33 @@ import * as vscode from 'vscode';
 // https://code.visualstudio.com/api/extension-guides/webview
 // https://code.visualstudio.com/api/extension-guides/custom-editors
 
+
+type SliderVals = {
+  [key: string]: number;
+};
+
+async function getFileContent(uri: vscode.Uri): Promise<string> {
+  const bytes = await vscode.workspace.fs.readFile(uri);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
 class SliderDocument implements vscode.CustomDocument {
-  constructor(public readonly uri: vscode.Uri) {}
+  constructor(public readonly uri: vscode.Uri) {
+    this.initialize(uri);
+  }
+
+  async initialize(uri: vscode.Uri) {
+    const documentText = await getFileContent(uri);
+    const jsonObject = JSON.parse(documentText);
+    this.sliderVals = jsonObject;
+  }
+  
+  public sliderVals: SliderVals = {};
 
   dispose(): void {
     // Dispose of any resources the document uses
   }
 }
-
-type SliderVals = {
-  [key: string]: number;
-};
 
 class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument> {
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
@@ -25,8 +41,6 @@ class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument
   }
 
   public static readonly viewType = 'mySliderEditor';
-
-  private sliderVals: SliderVals = {};
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -40,7 +54,7 @@ class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument
       enableScripts: true
     };
   
-    const content = await this.getFileContent(document.uri);
+    const content = await getFileContent(document.uri);
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, content);
   
     webviewPanel.webview.onDidReceiveMessage(async message => {
@@ -52,14 +66,8 @@ class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument
     }, undefined, this.context.subscriptions);
   }
 
-  private async getFileContent(uri: vscode.Uri): Promise<string> {
-    const bytes = await vscode.workspace.fs.readFile(uri);
-    return new TextDecoder('utf-8').decode(bytes);
-  }
-
   private getHtmlForWebview(webview: vscode.Webview, documentText: string): string {
     const jsonObject = JSON.parse(documentText);
-    this.sliderVals = jsonObject;
     let slidersHtml = Object.entries(jsonObject).map(([key, value]) =>
       `<label for="${key}">${key}: </label>
        <input type="range" id="${key}" name="${key}" min="1" max="100" value="${value}" class="slider">
@@ -97,16 +105,16 @@ class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument
     // json[key] = parseInt(value, 10);
     // const encoder = new TextEncoder();
     // await vscode.workspace.fs.writeFile(document.uri, encoder.encode(JSON.stringify(json, null, 2)));
-    this.sliderVals[key] = parseInt(value, 10);
+    document.sliderVals[key] = parseInt(value, 10);
   }
 
   onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<SliderDocument>>().event;
 
-  private async writeContentToFile(uri: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+  private async writeContentToFile(document: SliderDocument, uri: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       cancellation.onCancellationRequested(() => reject(new Error('Operation cancelled')));
       const encoder = new TextEncoder();
-      const content = JSON.stringify(this.sliderVals, null, 2);
+      const content = JSON.stringify(document.sliderVals, null, 2);
       vscode.workspace.fs.writeFile(uri, encoder.encode(content))
         .then(() => resolve(), reject);
     });
@@ -114,11 +122,11 @@ class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument
   
   
   saveCustomDocument(document: SliderDocument, cancellation: vscode.CancellationToken): Promise<void> {
-    return this.writeContentToFile(document.uri, cancellation);
+    return this.writeContentToFile(document, document.uri, cancellation);
   }
   
   saveCustomDocumentAs(document: SliderDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
-    return this.writeContentToFile(destination, cancellation);
+    return this.writeContentToFile(document, destination, cancellation);
   }
 
   revertCustomDocument(document: SliderDocument, cancellation: vscode.CancellationToken): Promise<void> {
