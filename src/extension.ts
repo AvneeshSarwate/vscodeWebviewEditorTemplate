@@ -24,7 +24,7 @@ class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument
     return providerRegistration;
   }
 
-  private static readonly viewType = 'mySliderEditor';
+  public static readonly viewType = 'mySliderEditor';
 
   private sliderVals: SliderVals = {};
 
@@ -137,6 +137,20 @@ class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument
 
 export function activate(context: vscode.ExtensionContext) {
   SliderEditorProvider.register(context);
+
+  // Register the command
+  let disposable = vscode.commands.registerCommand('slidereditor.openCustomEditor', async () => {
+    // Get the active text editor
+    let editor = vscode.window.activeTextEditor;
+    if (editor) {
+      let document = editor.document;
+
+      // Open the document with the custom editor
+      await vscode.commands.executeCommand('vscode.openWith', document.uri, SliderEditorProvider.viewType);
+    }
+  });
+
+  context.subscriptions.push(disposable);
 }
 
 export function deactivate() {}

@@ -9,9 +9,14 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "slidereditor.openCustomEditor",
+        "title": "Open with Slider Editor"
+      }
+    ],
     "customEditors": [
       {
         "viewType": "mySliderEditor",
@@ -22,7 +27,16 @@
           }
         ]
       }
-    ]
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "resourceExtname == .pianoroll.json",
+          "command": "slidereditor.openCustomEditor",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
