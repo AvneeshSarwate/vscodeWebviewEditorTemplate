@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 
+// https://code.visualstudio.com/api/extension-guides/webview
+// https://code.visualstudio.com/api/extension-guides/custom-editors
+
 class SliderDocument implements vscode.CustomDocument {
   constructor(public readonly uri: vscode.Uri) {}
 
