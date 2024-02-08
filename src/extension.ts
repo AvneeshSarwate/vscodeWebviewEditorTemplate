@@ -1,9 +1,19 @@
 import * as vscode from 'vscode';
 
-class SliderEditorProvider implements vscode.CustomEditorProvider {
+class SliderDocument implements vscode.CustomDocument {
+  constructor(public readonly uri: vscode.Uri) {}
+
+  dispose(): void {
+    // Dispose of any resources the document uses
+  }
+}
+
+class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument> {
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new SliderEditorProvider(context);
-    const providerRegistration = vscode.window.registerCustomEditorProvider(SliderEditorProvider.viewType, provider);
+    const providerRegistration = vscode.window.registerCustomEditorProvider(SliderEditorProvider.viewType, provider, {
+      supportsMultipleEditorsPerDocument: false,
+    });
     return providerRegistration;
   }
 
@@ -11,74 +21,97 @@ class SliderEditorProvider implements vscode.CustomEditorProvider {
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
-  async resolveCustomEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): Promise<void> {
+  async openCustomDocument(uri: vscode.Uri, openContext: { backupId?: string }, token: vscode.CancellationToken): Promise<SliderDocument> {
+    return new SliderDocument(uri);
+  }
+
+  async resolveCustomEditor(document: SliderDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken): Promise<void> {
+    // Ensure webview can run scripts
     webviewPanel.webview.options = {
-      enableScripts: true,
+      enableScripts: true
     };
+  
+    const content = await this.getFileContent(document.uri);
+    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, content);
+  
+    webviewPanel.webview.onDidReceiveMessage(async message => {
+      switch (message.command) {
+        case 'valueChanged':
+          await this.handleValueChange(document, message.key, message.value);
+          return;
+      }
+    }, undefined, this.context.subscriptions);
+  }
 
-    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.getText());
-
-    webviewPanel.webview.onDidReceiveMessage(e => this.handleMessage(e, document), null, this.context.subscriptions);
+  private async getFileContent(uri: vscode.Uri): Promise<string> {
+    const bytes = await vscode.workspace.fs.readFile(uri);
+    return new TextDecoder('utf-8').decode(bytes);
   }
 
   private getHtmlForWebview(webview: vscode.Webview, documentText: string): string {
     const jsonObject = JSON.parse(documentText);
-    let slidersHtml = '';
-    for (const [key, value] of Object.entries(jsonObject)) {
-      slidersHtml += `
-        <label for="${key}">${key}: </label>
-        <input type="range" id="${key}" name="${key}" min="1" max="100" value="${value}" class="slider">
-        <span id="${key}-value">${value}</span><br/>
-      `;
-    }
+    let slidersHtml = Object.entries(jsonObject).map(([key, value]) =>
+      `<label for="${key}">${key}: </label>
+       <input type="range" id="${key}" name="${key}" min="1" max="100" value="${value}" class="slider">
+       <span id="${key}-value">${value}</span><br/>`
+    ).join('');
 
-    return `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Piano Roll Editor</title>
-        <style>
-          .slider {
-            width: 100%;
-          }
-        </style>
-      </head>
-      <body>
-        ${slidersHtml}
-        <script>
-          const vscode = acquireVsCodeApi();
-          document.querySelectorAll('.slider').forEach(slider => {
-            slider.oninput = function() {
-              document.getElementById(this.name + '-value').textContent = this.value;
-              vscode.postMessage({
-                command: 'valueChanged',
-                key: this.name,
-                value: this.value
-              });
-            }
-          });
-        </script>
-      </body>
-      </html>
-    `;
+    return `<!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <title>Slider Editor</title>
+            </head>
+            <body>
+              ${slidersHtml}
+              <script>
+                document.querySelectorAll('.slider').forEach(slider => {
+                  slider.addEventListener('input', () => {
+                    const vscode = acquireVsCodeApi();
+                    vscode.postMessage({
+                      command: 'valueChanged',
+                      key: slider.name,
+                      value: slider.value
+                    });
+                    document.getElementById(slider.name + '-value').textContent = slider.value;
+                  });
+                });
+              </script>
+            </body>
+            </html>`;
   }
 
-  private handleMessage(message: any, document: vscode.TextDocument): void {
-    switch (message.command) {
-      case 'valueChanged':
-        this.updateValue(document, message.key, message.value);
-        break;
-    }
+  private async handleValueChange(document: SliderDocument, key: string, value: string): Promise<void> {
+    const fileContent = await this.getFileContent(document.uri);
+    const json = JSON.parse(fileContent);
+    json[key] = parseInt(value, 10);
+    const encoder = new TextEncoder();
+    await vscode.workspace.fs.writeFile(document.uri, encoder.encode(JSON.stringify(json, null, 2)));
   }
 
-  private updateValue(document: vscode.TextDocument, key: string, value: string): void {
-    const json = JSON.parse(document.getText());
-    json[key] = Number(value);
-    const edit = new vscode.WorkspaceEdit();
-    edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), JSON.stringify(json, null, 2));
-    vscode.workspace.applyEdit(edit);
+  onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<SliderDocument>>().event;
+  
+  saveCustomDocument(document: SliderDocument, cancellation: vscode.CancellationToken): Promise<void> {
+    // Implement saving the document
+    return Promise.resolve();
+  }
+
+  saveCustomDocumentAs(document: SliderDocument, destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+    // Implement saving the document under a new path
+    return Promise.resolve();
+  }
+
+  revertCustomDocument(document: SliderDocument, cancellation: vscode.CancellationToken): Promise<void> {
+    // Implement reverting the document to its last saved state
+    return Promise.resolve();
+  }
+
+  backupCustomDocument(document: SliderDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
+    // Implement creating a backup of the custom document
+    return Promise.resolve({
+      id: context.destination.fsPath,
+      delete: () => Promise.resolve(),
+    });
   }
 }
 
