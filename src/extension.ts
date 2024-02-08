@@ -135,22 +135,58 @@ class SliderEditorProvider implements vscode.CustomEditorProvider<SliderDocument
   }
 }
 
+// export function activate(context: vscode.ExtensionContext) {
+//   SliderEditorProvider.register(context);
+
+//   // Register the command
+//   let disposable = vscode.commands.registerCommand('slidereditor.openCustomEditor', async () => {
+//     // Get the active text editor
+//     let editor = vscode.window.activeTextEditor;
+//     if (editor) {
+//       let document = editor.document;
+
+//       // Open the document with the custom editor
+//       await vscode.commands.executeCommand('vscode.openWith', document.uri, SliderEditorProvider.viewType);
+//     }
+//   });
+
+//   context.subscriptions.push(disposable);
+// }
+
 export function activate(context: vscode.ExtensionContext) {
-  SliderEditorProvider.register(context);
-
-  // Register the command
-  let disposable = vscode.commands.registerCommand('slidereditor.openCustomEditor', async () => {
-    // Get the active text editor
-    let editor = vscode.window.activeTextEditor;
-    if (editor) {
-      let document = editor.document;
-
-      // Open the document with the custom editor
-      await vscode.commands.executeCommand('vscode.openWith', document.uri, SliderEditorProvider.viewType);
+  // Register the custom editor provider
+  const provider = new SliderEditorProvider(context);
+  context.subscriptions.push(vscode.window.registerCustomEditorProvider(SliderEditorProvider.viewType, provider, {
+    webviewOptions: {
+      enableFindWidget: true,
+      retainContextWhenHidden: true
     }
-  });
+  }));
 
-  context.subscriptions.push(disposable);
+  // Register the command to open files with the custom editor
+  context.subscriptions.push(vscode.commands.registerCommand('slidereditor.openCustomEditor', async () => {
+    // Get the active text editor if there's one open
+    let editor = vscode.window.activeTextEditor;
+    if (editor && editor.document.uri.fsPath.endsWith('.pianoroll.json')) {
+      // If the active editor has a .pianoroll.json file, open it in the custom editor
+      await vscode.commands.executeCommand('vscode.openWith', editor.document.uri, SliderEditorProvider.viewType);
+    } else {
+      // If no active editor or the file doesn't match, prompt the user to select a .pianoroll.json file
+      const options: vscode.OpenDialogOptions = {
+        canSelectMany: false,
+        openLabel: 'Open',
+        filters: {
+          'Piano Roll JSON': ['pianoroll.json']
+        }
+      };
+
+      const fileUri = await vscode.window.showOpenDialog(options);
+      if (fileUri && fileUri[0]) {
+        // Open the selected .pianoroll.json file in the custom editor
+        await vscode.commands.executeCommand('vscode.openWith', fileUri[0], SliderEditorProvider.viewType);
+      }
+    }
+  }));
 }
 
 export function deactivate() {}

@@ -1,13 +1,15 @@
 {
   "name": "slidereditor",
-  "displayName": "sliderEditor",
-  "description": "testing custom webUI extension",
+  "displayName": "Slider Editor",
+  "description": "Testing custom webUI extension",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.86.0"
   },
-  "categories": [
-    "Other"
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCommand:slidereditor.openCustomEditor",
+    "onCustomEditor:mySliderEditor"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -17,6 +19,15 @@
         "title": "Open with Slider Editor"
       }
     ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceExtname == .pianoroll.json",
+          "command": "slidereditor.openCustomEditor",
+          "group": "navigation"
+        }
+      ]
+    },
     "customEditors": [
       {
         "viewType": "mySliderEditor",
@@ -27,16 +38,7 @@
           }
         ]
       }
-    ],
-    "menus": {
-      "editor/title": [
-        {
-          "when": "resourceExtname == .pianoroll.json",
-          "command": "slidereditor.openCustomEditor",
-          "group": "navigation"
-        }
-      ]
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -48,13 +50,8 @@
   },
   "devDependencies": {
     "@types/vscode": "^1.86.0",
-    "@types/mocha": "^10.0.6",
-    "@types/node": "18.x",
-    "@typescript-eslint/eslint-plugin": "^6.19.1",
-    "@typescript-eslint/parser": "^6.19.1",
-    "eslint": "^8.56.0",
-    "typescript": "^5.3.3",
-    "@vscode/test-cli": "^0.0.4",
-    "@vscode/test-electron": "^2.3.9"
+    "@types/node": "^18.0.0",
+    "typescript": "^4.0.0",
+    "eslint": "^7.0.0"
   }
 }
